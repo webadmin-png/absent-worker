@@ -1,0 +1,484 @@
+// ═══════════════════════════════════════════════════════════════════════
+// SETUP.JS — Inisialisasi struktur sheet dan proteksi
+//
+// Berisi:
+//   buatSheetBulanBaru()   — buat sheet kosong untuk bulan berjalan
+//   setupProteksiMaster()  — kunci sheet Master_Data
+//   setupValidasiBaris()   — pasang dropdown & validasi format jam per baris baru
+//   setupValidasi()        — pasang validasi ke seluruh sheet yang sudah ada data
+//   proteksiBarisBaru()    — proteksi range E:O per staf + P:Q khusus admin
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── buatSheetBulanBaru — Buat sheet divisi bulan ini ──────────────────
+// Buat struktur header (baris 1–3) + formatting untuk setiap divisi.
+// Baris data (staf) akan diisi oleh appendHariIni() setelah sheet dibuat.
+function buatSheetBulanBaru() {
+  const ss        = SpreadsheetApp.getActiveSpreadsheet();
+  const now       = new Date();
+  const namaBulan = Utilities.formatDate(now, CONFIG.TIMEZONE, 'MMM_yyyy');
+  const hasil     = [];
+
+  for (const divisi of CONFIG.DIVISI) {
+    const namaSheet = divisi + '_' + namaBulan;
+
+    if (ss.getSheetByName(namaSheet)) {
+      hasil.push('⚠ ' + namaSheet + ' sudah ada — skip');
+      continue;
+    }
+
+    const sheet = ss.insertSheet(namaSheet);
+    sheet.setTabColor('#1D9E75');
+    sheet.setHiddenGridlines(true);
+
+    // Baris 1: Judul
+    sheet.getRange(1, 1, 1, TOTAL_COL).merge()
+      .setValue('ABSENSI ' + divisi + ' — ' +
+        Utilities.formatDate(now, CONFIG.TIMEZONE, 'MMMM yyyy').toUpperCase())
+      .setBackground('#0F6E56').setFontColor('#FFFFFF')
+      .setFontSize(12).setFontWeight('bold')
+      .setHorizontalAlignment('center').setVerticalAlignment('middle');
+    sheet.setRowHeight(1, 28);
+
+    // Baris 2: Legenda warna
+    const legends = [
+      [1,  4, 'ABU = sudah lewat',    '#F1EFE8', '#5F5E5A'],
+      [5,  4, 'PUTIH = bisa diedit',  '#FFFFFF',  '#2C2C2A'],
+      [9,  4, 'UNGU = formula auto',  '#EEEDFE',  '#534AB7'],
+      [13, 9, 'KUNING = hari ini',    '#FFF9C4',  '#633806'],
+    ];
+    for (const [startCol, span, text, bg, fg] of legends) {
+      sheet.getRange(2, startCol, 1, span).merge()
+        .setValue(text).setBackground(bg).setFontColor(fg)
+        .setFontSize(9).setFontWeight('bold')
+        .setHorizontalAlignment('center')
+        .setBorder(true,true,true,true,false,false,
+          '#B0D9C8', SpreadsheetApp.BorderStyle.SOLID);
+    }
+    sheet.setRowHeight(2, 16);
+
+    // Baris 3: Header kolom
+    const headers = [
+      ['Tanggal',                           '#1D9E75', '#FFFFFF'],
+      ['Hari',                              '#1D9E75', '#FFFFFF'],
+      ['Nama',                              '#1D9E75', '#FFFFFF'],
+      ['Email',                             '#1D9E75', '#FFFFFF'],
+      ['Status ▾',                          '#E1F5EE', '#085041'],
+      ['Masuk',                             '#E1F5EE', '#085041'],
+      ['Ist. Pertama\nMulai',               '#E1F5EE', '#085041'],
+      ['Ist. Pertama\nSelesai',             '#E1F5EE', '#085041'],
+      ['Ist. Kedua\nMulai',                 '#E1F5EE', '#085041'],
+      ['Ist. Kedua\nSelesai',               '#E1F5EE', '#085041'],
+      ['Pulang',                            '#E1F5EE', '#085041'],
+      ['Jam Efektif 🔒',                    '#1D9E75', '#FFFFFF'],
+      ['Regular Hours',                     '#E1F5EE', '#085041'],
+      ['OT 1',                              '#E1F5EE', '#085041'],
+      ['OT 2',                              '#E1F5EE', '#085041'],
+      ['NOTE',                              '#E1F5EE', '#085041'],
+      ['SUNDAY/RED DAY\nFILL: DOUBLE/SWAP', '#E1F5EE', '#085041'],
+      ['Keterangan\nTidak Hadir',           '#E1F5EE', '#085041'],
+      ['Plan',                              '#E1F5EE', '#085041'],
+      ['CATATAN\nTELAT',                    '#FFF3E0', '#E65100'],
+      ['CATATAN\nPULANG AWAL',              '#FFF3E0', '#E65100'],
+    ];
+    for (let col = 0; col < headers.length; col++) {
+      const [text, bg, fg] = headers[col];
+      sheet.getRange(3, col + 1)
+        .setValue(text).setBackground(bg).setFontColor(fg)
+        .setFontWeight('bold').setFontSize(9)
+        .setHorizontalAlignment('center').setVerticalAlignment('middle')
+        .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP)
+        .setBorder(true,true,true,true,false,false,
+          '#B0D9C8', SpreadsheetApp.BorderStyle.SOLID);
+    }
+    sheet.setRowHeight(3, 44);
+
+    // Lebar kolom A–S
+    const colWidths = [90,80,130,180,70,70,90,90,90,90,70,100,60,60,60,120,140,160,80,100,100];
+    colWidths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
+    sheet.setFrozenRows(3);
+
+    // Kunci header — owner dan admin
+    const headerProt = sheet.getRange('A1:S3').protect();
+    headerProt.setDescription('Header — owner dan admin');
+    headerProt.setWarningOnly(false);
+    headerProt.removeEditors(headerProt.getEditors());
+    headerProt.addEditor(Session.getEffectiveUser());
+    for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+      try { headerProt.addEditor(adminEmail); } catch(e) {}
+    }
+
+    hasil.push('✓ ' + namaSheet + ' dibuat (kosong — baris diisi appendHariIni)');
+  }
+
+  appendHariIni();
+
+  const msg = '✅ Sheet bulan baru selesai!\n\n' +
+    hasil.join('\n') + '\n\n' +
+    'Baris hari ini sudah di-append otomatis.\n' +
+    'Trigger harian akan append baris setiap pagi 06:00.';
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch(e) {}
+}
+
+// ── buatSheetSettings — Buat/reset sheet _Settings di spreadsheet ini ──
+// Sheet berisi key-value yang dibaca _loadSettings() setiap fungsi jalan.
+// Admin cukup ubah kolom VALUE — berlaku di append/trigger berikutnya.
+function buatSheetSettings() {
+  _requireAdmin();
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const divisi = (CONFIG.DIVISI[0] || '').toUpperCase();
+  const auto   = (CONFIG.AUTO_ABSENSI || {})[divisi] || {};
+  const ui     = SpreadsheetApp.getUi();
+
+  // Konfirmasi jika sheet sudah ada
+  const existing = ss.getSheetByName('_Settings');
+  if (existing) {
+    const res = ui.alert(
+      'Sheet _Settings sudah ada.',
+      'Reset dan buat ulang? Perubahan yang belum disimpan akan hilang.',
+      ui.ButtonSet.YES_NO
+    );
+    if (res !== ui.Button.YES) return;
+    ss.deleteSheet(existing);
+  }
+
+  const sheet = ss.insertSheet('_Settings');
+  sheet.setTabColor('#F57F17');
+  sheet.setHiddenGridlines(true);
+
+  // ── Header ──
+  sheet.getRange('A1:C1')
+    .setValues([['KEY', 'VALUE', 'Keterangan']])
+    .setBackground('#F57F17').setFontColor('#FFFFFF')
+    .setFontWeight('bold').setFontSize(10)
+    .setHorizontalAlignment('center');
+  sheet.setRowHeight(1, 28);
+
+  // ── Data ──
+  const rows = [
+    // Jam auto-absensi
+    ['MASUK',              auto.masuk        || '', 'Jam masuk default (HH:mm) — kosongkan jika staf isi sendiri'],
+    ['IST1_MULAI',         auto.ist1Mulai    || '', 'Istirahat pertama mulai (HH:mm) — kosongkan jika tidak ada'],
+    ['IST1_SELESAI',       auto.ist1Selesai  || '', 'Istirahat pertama selesai (HH:mm)'],
+    ['IST2_MULAI',         auto.ist2Mulai    || '', 'Istirahat kedua mulai (HH:mm) — kosongkan jika tidak ada'],
+    ['IST2_SELESAI',       auto.ist2Selesai  || '', 'Istirahat kedua selesai (HH:mm)'],
+    ['PULANG',             auto.pulang       || '', 'Jam pulang default (HH:mm) — kosongkan jika staf isi sendiri'],
+    // Separator kosong
+    ['', '', ''],
+    // Pengaturan operasional
+    ['DIVISI',             divisi,                                     'Nama divisi ini — HURUF KAPITAL. Ubah jika spreadsheet di-duplicate untuk divisi baru (contoh: FINANCE)'],
+    ['JAM_REMINDER',       String(CONFIG.JAM_REMINDER        || 17),  'Jam pengingat belum isi pulang (angka 0–23)'],
+    ['SELISIH_MENIT_LOCK', String(CONFIG.SELISIH_MENIT_LOCK  || 30),  'Menit setelah pulang → baris terkunci otomatis'],
+    ['PLAN_JAM',           (CONFIG.PLAN_JAM  || []).join(','),         'Opsi plan jam kerja, pisah koma (contoh: 07:00-16:00,08:00-17:00)'],
+    ['ADMIN_EMAILS',       (CONFIG.ADMIN_EMAILS || []).join(','),      'Email admin, pisah koma'],
+  ];
+
+  sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+
+  // Baris 2–6 (MASUK s/d IST2_SELESAI) — kolom VALUE format HH:mm
+  // agar Sheets menyimpan sebagai time serial, bukan string, sehingga
+  // formula jam kerja di sheet absensi bisa menghitung dengan benar
+  sheet.getRange(2, 2, 5, 1).setNumberFormat('HH:mm');
+
+  // ── Styling ──
+  const keyRange = sheet.getRange(2, 1, rows.length, 1);
+  keyRange.setBackground('#FFF3E0').setFontWeight('bold').setFontSize(10);
+
+  const valRange = sheet.getRange(2, 2, rows.length, 1);
+  valRange.setBackground('#FFFFFF').setFontSize(10);
+
+  const ketRange = sheet.getRange(2, 3, rows.length, 1);
+  ketRange.setBackground('#FAFAFA').setFontColor('#888').setFontSize(9).setFontStyle('italic');
+
+  // Baris separator (baris 7) — abu
+  sheet.getRange(7, 1, 1, 3).setBackground('#F5F5F5');
+
+  // Lebar kolom
+  sheet.setColumnWidth(1, 180);
+  sheet.setColumnWidth(2, 200);
+  sheet.setColumnWidth(3, 360);
+  sheet.setFrozenRows(1);
+
+  // Border seluruh tabel
+  sheet.getRange(1, 1, rows.length + 1, 3)
+    .setBorder(true, true, true, true, true, true,
+      '#E0E0E0', SpreadsheetApp.BorderStyle.SOLID);
+
+  // ── Proteksi: KEY dan Keterangan terkunci, VALUE bisa diedit admin ──
+  const owner = Session.getEffectiveUser();
+
+  const sheetProt = sheet.protect();
+  sheetProt.setDescription('_Settings — hanya admin yang bisa edit');
+  sheetProt.setWarningOnly(false);
+  sheetProt.removeEditors(sheetProt.getEditors());
+  sheetProt.addEditor(owner);
+  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+    try { sheetProt.addEditor(adminEmail); } catch(e) {}
+  }
+
+  ui.alert(
+    '✅ Sheet _Settings berhasil dibuat!\n\n' +
+    'Edit kolom VALUE untuk mengubah setting.\n' +
+    'Perubahan berlaku otomatis di append/trigger berikutnya.\n\n' +
+    'Sheet ini hanya bisa diedit oleh admin.'
+  );
+}
+
+// ── setupProteksiMaster — Kunci sheet Master_Data ─────────────────────
+// Hapus proteksi lama lalu kunci seluruh sheet untuk owner saja
+function setupProteksiMaster() {
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
+  if (!master) return;
+
+  master.getProtections(SpreadsheetApp.ProtectionType.SHEET)
+    .forEach(p => p.remove());
+
+  const prot = master.protect();
+  prot.setDescription('HRD/owner/admin yang bisa edit Master_Data');
+  prot.setWarningOnly(false);
+  prot.removeEditors(prot.getEditors());
+  prot.addEditor(Session.getEffectiveUser());
+  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+    try { prot.addEditor(adminEmail); } catch(e) {}
+  }
+  Logger.log('Proteksi Master_Data selesai.');
+}
+
+// ── perbaruiProteksiAdmin — Tambah admin ke semua proteksi yang sudah ada ──
+// Dipakai saat ADMIN_EMAILS diperbarui di _Settings agar editor lama
+// (Master_Data, _Settings, header sheet bulan) langsung mendapat akses baru.
+function perbaruiProteksiAdmin() {
+  _requireAdmin();
+  _loadSettings();
+  const ss      = SpreadsheetApp.getActiveSpreadsheet();
+  const owner   = Session.getEffectiveUser();
+  const admins  = CONFIG.ADMIN_EMAILS;
+  const hasil   = [];
+
+  function _terapkan(prot, label) {
+    prot.removeEditors(prot.getEditors());
+    prot.addEditor(owner);
+    for (const e of admins) {
+      try { prot.addEditor(e); } catch(err) {}
+    }
+    Logger.log('✓ Proteksi diperbarui: ' + label);
+  }
+
+  // Master_Data
+  const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
+  if (master) {
+    master.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
+    const p = master.protect();
+    p.setDescription('HRD/owner/admin yang bisa edit Master_Data');
+    p.setWarningOnly(false);
+    _terapkan(p, 'Master_Data');
+    hasil.push('✓ Master_Data');
+  }
+
+  // _Settings
+  const settings = ss.getSheetByName('_Settings');
+  if (settings) {
+    settings.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
+    const p = settings.protect();
+    p.setDescription('_Settings — hanya admin yang bisa edit');
+    p.setWarningOnly(false);
+    _terapkan(p, '_Settings');
+    hasil.push('✓ _Settings');
+  }
+
+  // Header semua sheet divisi (baris 1–3)
+  const divisiPrefix = CONFIG.DIVISI.map(d => d + '_');
+  ss.getSheets().forEach(sheet => {
+    const nama = sheet.getName();
+    const isDivisi = CONFIG.DIVISI.some(d => nama === d || nama.startsWith(d + '_'));
+    if (!isDivisi) return;
+
+    sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE).forEach(p => {
+      if (p.getRange().getRow() <= 3) {
+        _terapkan(p, nama + ' header');
+      }
+    });
+    hasil.push('✓ ' + nama + ' (header)');
+  });
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Proteksi diperbarui!\n\n' +
+    'Admin emails:\n' + admins.join('\n') + '\n\n' +
+    hasil.join('\n')
+  );
+}
+
+// ── setupValidasiBaris — Pasang dropdown & validasi per baris baru ────
+// Dipanggil setiap kali ada baris baru di-append atau sheet di-generate
+function setupValidasiBaris(sheet, startRow, numRows) {
+  if (!sheet || numRows <= 0) return;
+
+  // E: Status (dropdown)
+  sheet.getRange(startRow, COL_STATUS, numRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(['Hadir', 'Sakit', 'Izin', 'Alpha'], true)
+      .setHelpText('Pilih: Hadir / Sakit / Izin / Alpha')
+      .setAllowInvalid(false).build()
+  );
+
+  // F: Masuk — wajib diisi dengan format HH:MM
+  sheet.getRange(startRow, COL_MASUK, numRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireFormulaSatisfied('=ISNUMBER(TIMEVALUE(F' + startRow + '))')
+      .setHelpText('Format jam: HH:MM — contoh 07:30')
+      .setAllowInvalid(false).build()
+  );
+
+  // G–K: opsional, jika diisi harus HH:MM
+  ['G','H','I','J','K'].forEach((col, idx) => {
+    sheet.getRange(startRow, COL_IST1_M + idx, numRows, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation()
+        .requireFormulaSatisfied(
+          '=OR(' + col + startRow + '="",ISNUMBER(TIMEVALUE(' + col + startRow + ')))'
+        )
+        .setHelpText('Kosongkan jika tidak ada. Format: HH:MM')
+        .setAllowInvalid(false).build()
+    );
+  });
+
+  // P: NOTE (admin only — dropdown)
+  sheet.getRange(startRow, COL_NOTE, numRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList([
+        'HALF DAY', 'HALF DAY RED DAY', 'RED DAY', 'RED DAY DOUBLE',
+        'SAVING DAY RED DAY/SUNDAY', 'SWAP RED DAY', 'VACATION PAID',
+        'FLEX DAY', 'ADDITIONAL PAID', 'MATERNITY LEAVE',
+        'SICK PAID', 'SICK UNPAID', 'DAY OFF UNPAID',
+      ], true)
+      .setHelpText('Pilih jenis keterangan hari khusus')
+      .setAllowInvalid(false).build()
+  );
+
+  // Q: SUNDAY/RED DAY (admin only — dropdown)
+  sheet.getRange(startRow, COL_SUNDAY, numRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(['SWAP', 'DOUBLE', 'HALF DAY SUNDAY'], true)
+      .setHelpText('Pilih: SWAP / DOUBLE / HALF DAY SUNDAY')
+      .setAllowInvalid(false).build()
+  );
+}
+
+// ── setupValidasi — Pasang validasi ke seluruh sheet ──────────────────
+// Dipakai untuk sheet yang sudah ada datanya (retroactive)
+function setupValidasi(sheet) {
+  if (!sheet) return;
+  const lastRow  = sheet.getLastRow();
+  const dataRows = lastRow - 3;
+  if (dataRows <= 0) return;
+  setupValidasiBaris(sheet, 4, dataRows);
+  Logger.log('Validasi selesai: ' + sheet.getName());
+}
+
+// ── proteksiBarisBaru — Proteksi range per staf + admin-only P:Q ──────
+// Langkah:
+//   1. Hapus proteksi range lama yang overlap dengan baris baru
+//   2. Buat proteksi E:O per staf (hanya email staf + owner yang bisa edit)
+//   3. Buat proteksi P:Q khusus admin (owner + ADMIN_EMAILS)
+function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
+  if (!master) return;
+
+  const owner  = Session.getEffectiveUser();
+  const endRow = startRow + numRows - 1;
+
+  // Step 1: Hapus proteksi lama yang overlap
+  const existingProtRanges = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+  for (const prot of existingProtRanges) {
+    const pr  = prot.getRange();
+    const ps  = pr.getRow();
+    const pe  = pr.getLastRow();
+    if (ps <= endRow && pe >= startRow) {
+      prot.remove();
+      Logger.log('🗑 Hapus proteksi lama: baris ' + ps + '–' + pe);
+    }
+  }
+
+  // Step 2: Ambil staf divisi dari Master_Data
+  const masterData = master.getRange('A4:D200').getValues()
+    .filter(r =>
+      r[0] !== '' &&
+      String(r[0]).trim().toUpperCase() === divisi.trim().toUpperCase() &&
+      String(r[3]).trim().toUpperCase() === 'TRUE'
+    );
+
+  if (masterData.length === 0) {
+    Logger.log('⚠ Tidak ada staf aktif untuk divisi: ' + divisi);
+    return;
+  }
+
+  // Step 3: Kelompokkan nomor baris per nama staf
+  const newData       = sheet.getRange(startRow, 1, numRows, TOTAL_COL).getValues();
+  const barisPerOrang = {};
+  for (let i = 0; i < newData.length; i++) {
+    const nama = String(newData[i][COL_NAMA - 1]).trim();
+    if (!nama) continue;
+    if (!barisPerOrang[nama]) barisPerOrang[nama] = [];
+    barisPerOrang[nama].push(startRow + i);
+  }
+
+  // Step 4: Proteksi E:O per staf (staf hanya bisa edit barisnya sendiri)
+  let berhasil = 0;
+  for (const k of masterData) {
+    const nama  = String(k[1]).trim();
+    const email = String(k[2]).trim();
+    if (!nama || !email) continue;
+
+    const baris = barisPerOrang[nama];
+    if (!baris || baris.length === 0) {
+      Logger.log('⚠ ' + nama + ': tidak ada baris di range ' + startRow + '–' + endRow);
+      continue;
+    }
+
+    const range = sheet.getRange(
+      baris[0], COL_STATUS,
+      baris.length, COL_OT2 - COL_STATUS + 1  // E sampai O
+    );
+
+    const prot = range.protect();
+    prot.setDescription(nama + ' — ' + email +
+      ' (baris ' + baris[0] + '–' + baris[baris.length - 1] + ')');
+    prot.setWarningOnly(false);
+    prot.removeEditors(prot.getEditors());
+    prot.addEditor(owner);
+
+    // Tambah semua admin email
+    for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+      try { prot.addEditor(adminEmail); } catch(err) {
+        Logger.log('⚠ Gagal tambah admin ' + adminEmail + ': ' + err.message);
+      }
+    }
+
+    try {
+      prot.addEditor(email);
+      berhasil++;
+      Logger.log('✓ Proteksi: ' + nama + ' baris ' + baris[0] + '–' + baris[baris.length - 1]);
+    } catch(e) {
+      Logger.log('⚠ Gagal tambah editor ' + email + ': ' + e.message);
+    }
+  }
+
+  // Step 5: Proteksi P:Q — hanya admin
+  const rangePQ = sheet.getRange(startRow, COL_NOTE, numRows, 2);
+  const protPQ  = rangePQ.protect();
+  protPQ.setDescription('Admin only — P:Q baris ' + startRow + '–' + endRow);
+  protPQ.setWarningOnly(false);
+  protPQ.removeEditors(protPQ.getEditors());
+  protPQ.addEditor(owner);
+  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+    try {
+      protPQ.addEditor(adminEmail);
+    } catch(err) {
+      Logger.log('⚠ Gagal tambah admin P:Q ' + adminEmail + ': ' + err.message);
+    }
+  }
+
+  Logger.log('✓ Proteksi P:Q (admin only) baris ' + startRow + '–' + endRow);
+  Logger.log(divisi + ': proteksi selesai — ' + berhasil + ' orang');
+}
