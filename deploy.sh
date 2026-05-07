@@ -18,7 +18,7 @@ set -euo pipefail
 TARGETS=(
   "DEVELOPMENT:1nH3AmfYpDLj0QoskX45YKZ72fs0q1TinpoWfhvN4OT5rc-vvg2eAX5Wk"
   "WORKER:1GSnVsll5y8tx8iExoxt1JmJ5cV5loy4JfsuklmzjV-F4qxv2zmy7iySC"
-  # Tambah divisi baru di sini — format: "NAMA_DIVISI:scriptId"
+  "LINE 1:14YgLiZHIXIyf8W4GVHh_P2udL04bY1qglOr-v0eBGpLVJ335Lrf4ke1J"
   # "FINANCE:GANTI_DENGAN_SCRIPT_ID_FINANCE"
   # "MARKETING:GANTI_DENGAN_SCRIPT_ID_MARKETING"
 )
