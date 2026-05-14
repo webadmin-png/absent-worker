@@ -19,6 +19,7 @@
 // Baca semua sheet divisi aktif, akumulasi jam per karyawan,
 // tulis ke sheet "Rekap_Absensi"
 function buatSheetRekap() {
+  _requireAdmin();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const rekapSheetName = 'Rekap_Absensi';
   let rekapSheet = ss.getSheetByName(rekapSheetName);
@@ -148,6 +149,7 @@ function buatSheetRekap() {
 // HRD input bulan + divisi via prompt, lalu buat sheet dengan semua hari
 // dan semua staf untuk bulan tersebut
 function generateFullMonth() {
+  _requireAdmin();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
@@ -383,6 +385,7 @@ function generateFullMonth() {
 // Bisa dipanggil dari menu (UI) atau dari editor/trigger (tanpa UI).
 // Jika dipanggil tanpa UI, gunakan hitungRekapAuto(namaSumber, namaHasil).
 function hitungRekap(namaSumber, namaHasil) {
+  _requireAdmin();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // Deteksi apakah bisa pakai UI
@@ -560,6 +563,7 @@ function hitungRekap(namaSumber, namaHasil) {
 // Berbeda dari hitungRekap: ini menggunakan SUMIFS/COUNTIFS langsung di sheet
 // sehingga rekap otomatis update jika data sumber berubah
 function generateTemplateRekap() {
+  _requireAdmin();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let ui;
   try { ui = SpreadsheetApp.getUi(); } catch (e) {
@@ -821,6 +825,7 @@ function generateTemplateRekap() {
 // Script hanya membuat sheet dan menulis 1 rumus QUERY yang menarik data
 // dari semua sheet divisi yang relevan — data otomatis update jika sumber berubah.
 function buatSheetRentang() {
+  _requireAdmin();
   let ui;
   try { ui = SpreadsheetApp.getUi(); } catch(e) { return; }
 
@@ -967,6 +972,7 @@ function buatSheetRentang() {
 // Otomatis scan semua sheet divisi yang bulannya masuk dalam rentang,
 // filter baris per tanggal, akumulasi jam → tulis ke 1 sheet rekap baru.
 function rekapRentangTanggal() {
+  _requireAdmin();
   let ui;
   try { ui = SpreadsheetApp.getUi(); } catch(e) { return; }
 

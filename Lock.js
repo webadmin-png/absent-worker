@@ -10,6 +10,7 @@
 // Dipanggil via trigger setiap pukul JAM_REMINDER (default 17:00).
 // Cari staf yang status = Hadir, sudah isi masuk, tapi belum isi pulang.
 function cekBelumIsiPulang() {
+  _loadSettings();
   const today = getToday();
   const hasil = [];
 
@@ -53,6 +54,7 @@ function cekBelumIsiPulang() {
 //   - Selisih waktu sekarang vs jam pulang >= 30 menit
 //   → Ganti proteksi menjadi hanya owner + admin (staf tidak bisa edit lagi)
 function lockBarisWebSudahPulang() {
+  _loadSettings();
   for (const divisi of CONFIG.DIVISI) {
     const sheet = getSheetAktifDivisi(divisi);
     if (!sheet) continue;
@@ -101,8 +103,9 @@ function lockBarisWebSudahPulang() {
       if (jamPulang > now) jamPulang.setDate(jamPulang.getDate() - 1);
 
       const selisihMenit = (now - jamPulang) / 60000;
-      if (selisihMenit < 30) {
-        Logger.log('⏳ ' + nama + ' (baris ' + row + ') belum 30 menit (' +
+      if (selisihMenit < CONFIG.SELISIH_MENIT_LOCK) {
+        Logger.log('⏳ ' + nama + ' (baris ' + row + ') belum ' +
+          CONFIG.SELISIH_MENIT_LOCK + ' menit (' +
           Math.round(selisihMenit) + ' menit)');
         continue;
       }

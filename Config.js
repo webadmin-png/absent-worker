@@ -13,6 +13,8 @@ var CONFIG = {
   // Email yang boleh edit semua baris bebas (HRD, admin, supervisor)
   ADMIN_EMAILS  : [
     'webadmin@wooden-ships.com',
+    'web@pt-infashion.com',
+    'hrd@pt-infashion.com'
   ],
 
   // ID Google Spreadsheet terpisah yang berisi sheet "Settings"

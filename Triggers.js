@@ -28,13 +28,20 @@ function _requireAdmin() {
   );
 }
 
-// ── onEdit — Guard proteksi edit ──────────────────────────────────────
+// ── onEditInstalled — Guard proteksi edit (installable trigger) ───────
 // Mencegah staf mengedit kolom yang bukan haknya:
 //   - Kolom A–D terkunci (tanggal, hari, nama, email)
 //   - Kolom L (Jam Efektif) terkunci — formula otomatis
 //   - Kolom P–Q (NOTE, SUNDAY) — hanya admin
 //   - Kolom lain: hanya bisa edit baris milik sendiri (cocokkan email)
-function onEdit(e) {
+//
+// PENTING: Nama fungsi sengaja BUKAN "onEdit" — kalau dinamai "onEdit",
+// Google Apps Script juga akan menjalankannya sebagai simple trigger
+// yang tidak bisa membaca email user lintas-domain. Dengan nama lain,
+// hanya installable trigger (di-setup via setupTrigger) yang jalan,
+// sehingga Session.getActiveUser() mengembalikan email editor walaupun
+// berbeda domain dengan owner spreadsheet.
+function onEditInstalled(e) {
   if (!e) return;
   _loadSettings();
 
@@ -200,7 +207,9 @@ function setupTrigger() {
     .timeBased().everyHours(1).create();
 
   // onEdit installable — guard proteksi per email
-  ScriptApp.newTrigger('onEdit')
+  // Fungsi sengaja diberi nama "onEditInstalled" (bukan "onEdit") agar
+  // tidak ikut jalan sebagai simple trigger yang bermasalah cross-domain.
+  ScriptApp.newTrigger('onEditInstalled')
     .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
     .onEdit().create();
 
