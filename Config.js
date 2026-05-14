@@ -5,7 +5,7 @@
 
 var CONFIG = {
   SHEET_MASTER  : 'Master_Data',
-  DIVISI        : ['DEVELOPMENT'],
+  DIVISI        : ['TESTING WORKER 2'],
   JAM_REMINDER  : 17,
   NAMA_INSTANSI : 'PT InFashion',
   TIMEZONE      : 'Asia/Makassar', // WITA (UTC+8)
