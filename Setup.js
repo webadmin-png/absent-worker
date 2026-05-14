@@ -404,7 +404,8 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
   }
 
   // Step 2: Ambil staf divisi dari Master_Data
-  const masterData = master.getRange('A4:D200').getValues()
+  // Range diperluas ke kolom E untuk membaca Email Asisten (opsional).
+  const masterData = master.getRange('A4:E200').getValues()
     .filter(r =>
       r[0] !== '' &&
       String(r[0]).trim().toUpperCase() === divisi.trim().toUpperCase() &&
@@ -465,6 +466,18 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
       Logger.log('✓ Proteksi: ' + nama + ' baris ' + baris[0] + '–' + baris[baris.length - 1]);
     } catch(e) {
       Logger.log('⚠ Gagal tambah editor ' + email + ': ' + e.message);
+    }
+
+    // Email asisten (kolom E Master_Data) — opsional, skip kalau kosong.
+    // Mapping 1-ke-1: asisten cuma boleh edit baris worker spesifiknya.
+    const asisten = String(k[4] || '').trim();
+    if (asisten) {
+      try {
+        prot.addEditor(asisten);
+        Logger.log('✓ Proteksi asisten: ' + nama + ' ← ' + asisten);
+      } catch(err) {
+        Logger.log('⚠ Gagal tambah asisten ' + asisten + ': ' + err.message);
+      }
     }
   }
 
