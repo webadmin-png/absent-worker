@@ -123,6 +123,77 @@ function buatSheetBulanBaru() {
   try { SpreadsheetApp.getUi().alert(msg); } catch(e) {}
 }
 
+// ── _setProteksiSettingsJam — Pasang proteksi range A2:C9 ─────────────
+// Private helper dipanggil oleh buatSheetSettings() dan perbaruiAksesSettings().
+// Range A2:C9 (row jam: MASUK, IST1/2/3 mulai/selesai, PULANG) bisa diedit
+// oleh: owner + admin + semua email worker (Master_Data kolom C) +
+// semua email asisten (kolom E). Range protection ini override sheet
+// protection admin-only di area row jam.
+function _setProteksiSettingsJam(sheet) {
+  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+  const owner  = Session.getEffectiveUser();
+
+  // Hapus proteksi range A2:C9 lama (kalau ada) — bikin idempotent
+  const existing = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
+    .find(p => {
+      const r = p.getRange();
+      return r.getRow() === 2 && r.getLastRow() === 9 &&
+             r.getColumn() === 1 && r.getLastColumn() === 3;
+    });
+  if (existing) existing.remove();
+
+  // Buat proteksi range baru
+  const jamProt = sheet.getRange('A2:C9').protect();
+  jamProt.setDescription('_Settings jam — admin + worker + asisten');
+  jamProt.setWarningOnly(false);
+  jamProt.removeEditors(jamProt.getEditors());
+  jamProt.addEditor(owner);
+
+  // Tambah admin emails
+  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+    try { jamProt.addEditor(adminEmail); } catch(e) {
+      Logger.log('⚠ Gagal tambah admin ' + adminEmail + ' ke _Settings A2:C9: ' + e.message);
+    }
+  }
+
+  // Tambah worker + asisten dari Master_Data
+  const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
+  let countWorker = 0;
+  let countAsisten = 0;
+  if (master) {
+    const masterData = master.getRange('A4:E200').getValues()
+      .filter(r => r[0] !== '' && String(r[3]).trim().toUpperCase() === 'TRUE');
+    for (const k of masterData) {
+      const workerEmail  = String(k[2] || '').trim();
+      const asistenEmail = String(k[4] || '').trim();
+      if (workerEmail) {
+        try {
+          jamProt.addEditor(workerEmail);
+          countWorker++;
+        } catch(e) {
+          Logger.log('⚠ Gagal tambah worker ' + workerEmail + ' ke _Settings: ' + e.message);
+        }
+      }
+      if (asistenEmail) {
+        try {
+          jamProt.addEditor(asistenEmail);
+          countAsisten++;
+        } catch(e) {
+          Logger.log('⚠ Gagal tambah asisten ' + asistenEmail + ' ke _Settings: ' + e.message);
+        }
+      }
+    }
+  } else {
+    Logger.log('⚠ Master_Data tidak ditemukan — _Settings A2:C9 hanya editable admin');
+  }
+
+  Logger.log('✓ _Settings A2:C9: editor = owner + ' +
+    CONFIG.ADMIN_EMAILS.length + ' admin + ' +
+    countWorker + ' worker + ' + countAsisten + ' asisten');
+
+  return { countWorker, countAsisten };
+}
+
 // ── buatSheetSettings — Buat/reset sheet _Settings di spreadsheet ini ──
 // Sheet berisi key-value yang dibaca _loadSettings() setiap fungsi jalan.
 // Admin cukup ubah kolom VALUE — berlaku di append/trigger berikutnya.
@@ -209,7 +280,9 @@ function buatSheetSettings() {
     .setBorder(true, true, true, true, true, true,
       '#E0E0E0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Proteksi: KEY dan Keterangan terkunci, VALUE bisa diedit admin ──
+  // ── Proteksi: 2 lapis ───────────────────────────────────────────────
+  // 1. Sheet-level (admin only) — default-deny untuk seluruh sheet
+  // 2. Range A2:C9 (jam) — admin + worker + asisten (override sheet protect)
   const owner = Session.getEffectiveUser();
 
   const sheetProt = sheet.protect();
@@ -221,11 +294,15 @@ function buatSheetSettings() {
     try { sheetProt.addEditor(adminEmail); } catch(e) {}
   }
 
+  const { countWorker, countAsisten } = _setProteksiSettingsJam(sheet);
+
   ui.alert(
     '✅ Sheet _Settings berhasil dibuat!\n\n' +
     'Edit kolom VALUE untuk mengubah setting.\n' +
     'Perubahan berlaku otomatis di append/trigger berikutnya.\n\n' +
-    'Sheet ini hanya bisa diedit oleh admin.'
+    'Akses:\n' +
+    '• Row 2–9 (jam): admin + ' + countWorker + ' worker + ' + countAsisten + ' asisten\n' +
+    '• Row 1, 10–15: admin only'
   );
 }
 
