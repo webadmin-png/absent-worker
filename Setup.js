@@ -123,40 +123,47 @@ function buatSheetBulanBaru() {
   try { SpreadsheetApp.getUi().alert(msg); } catch(e) {}
 }
 
-// ── _setProteksiSettingsJam — Pasang proteksi range A2:C9 ─────────────
+// ── _setProteksiSettings — Pasang proteksi range _Settings ────────────
 // Private helper dipanggil oleh buatSheetSettings() dan perbaruiAksesSettings().
-// Range A2:C9 (row jam: MASUK, IST1/2/3 mulai/selesai, PULANG) bisa diedit
-// oleh: owner + admin + semua email worker (Master_Data kolom C) +
-// semua email asisten (kolom E). Range protection ini override sheet
-// protection admin-only di area row jam.
-function _setProteksiSettingsJam(sheet) {
-  const ss     = SpreadsheetApp.getActiveSpreadsheet();
-  const owner  = Session.getEffectiveUser();
+// Pendekatan range-only:
+//   - A1:C1 (header)             → admin only
+//   - A10:C15 (separator + ops)  → admin only (DIVISI, JAM_REMINDER,
+//                                    SELISIH_MENIT_LOCK, PLAN_JAM,
+//                                    ADMIN_EMAILS)
+//   - A2:C9  (jam settings)      → tidak diproteksi sama sekali
+//                                    siapa pun yang Editor di spreadsheet
+//                                    bisa edit
+//
+// Worker + asisten dari Master_Data di-share sebagai Editor spreadsheet
+// (ss.addEditor) supaya mereka bisa membuka file dan mengedit row 2-9.
+// Idempotent: semua proteksi lama di sheet dihapus dulu.
+function _setProteksiSettings(sheet) {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const owner = Session.getEffectiveUser();
 
-  // Hapus proteksi range A2:C9 lama (kalau ada) — bikin idempotent
-  const existing = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
-    .find(p => {
-      const r = p.getRange();
-      return r.getRow() === 2 && r.getLastRow() === 9 &&
-             r.getColumn() === 1 && r.getLastColumn() === 3;
-    });
-  if (existing) existing.remove();
+  // Hapus semua proteksi lama (sheet & range) di sheet ini — clean slate
+  sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
+  sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE).forEach(p => p.remove());
 
-  // Buat proteksi range baru
-  const jamProt = sheet.getRange('A2:C9').protect();
-  jamProt.setDescription('_Settings jam — admin + worker + asisten');
-  jamProt.setWarningOnly(false);
-  jamProt.removeEditors(jamProt.getEditors());
-  jamProt.addEditor(owner);
-
-  // Tambah admin emails
-  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
-    try { jamProt.addEditor(adminEmail); } catch(e) {
-      Logger.log('⚠ Gagal tambah admin ' + adminEmail + ' ke _Settings A2:C9: ' + e.message);
+  // Helper: pasang proteksi range admin-only
+  function _proteksiAdmin(rangeA1, desc) {
+    const prot = sheet.getRange(rangeA1).protect();
+    prot.setDescription(desc);
+    prot.setWarningOnly(false);
+    prot.removeEditors(prot.getEditors());
+    prot.addEditor(owner);
+    for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+      try { prot.addEditor(adminEmail); } catch(e) {
+        Logger.log('⚠ Gagal tambah admin ' + adminEmail + ' ke ' + rangeA1 + ': ' + e.message);
+      }
     }
   }
 
-  // Tambah worker + asisten dari Master_Data
+  _proteksiAdmin('A1:C1',   '_Settings header — admin only');
+  _proteksiAdmin('A10:C15', '_Settings operational (separator + DIVISI/ADMIN/PLAN/dll) — admin only');
+
+  // Share spreadsheet ke worker + asisten dari Master_Data supaya mereka
+  // bisa buka file dan edit row 2-9 (yang tidak diproteksi).
   const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
   let countWorker = 0;
   let countAsisten = 0;
@@ -168,31 +175,27 @@ function _setProteksiSettingsJam(sheet) {
       const asistenEmail = String(k[4] || '').trim();
       if (workerEmail) {
         try {
-          // Share spreadsheet dulu — protection.addEditor saja tidak cukup
-          // untuk akun yang belum pernah di-share (cross-domain quirk).
           ss.addEditor(workerEmail);
-          jamProt.addEditor(workerEmail);
           countWorker++;
         } catch(e) {
-          Logger.log('⚠ Gagal tambah worker ' + workerEmail + ' ke _Settings: ' + e.message);
+          Logger.log('⚠ Gagal share worker ' + workerEmail + ': ' + e.message);
         }
       }
       if (asistenEmail) {
         try {
           ss.addEditor(asistenEmail);
-          jamProt.addEditor(asistenEmail);
           countAsisten++;
         } catch(e) {
-          Logger.log('⚠ Gagal tambah asisten ' + asistenEmail + ' ke _Settings: ' + e.message);
+          Logger.log('⚠ Gagal share asisten ' + asistenEmail + ': ' + e.message);
         }
       }
     }
   } else {
-    Logger.log('⚠ Master_Data tidak ditemukan — _Settings A2:C9 hanya editable admin');
+    Logger.log('⚠ Master_Data tidak ditemukan — worker/asisten tidak ditambah sebagai Editor');
   }
 
-  Logger.log('✓ _Settings A2:C9: editor = owner + ' +
-    CONFIG.ADMIN_EMAILS.length + ' admin + ' +
+  Logger.log('✓ _Settings proteksi: row 1 + row 10-15 admin only, row 2-9 open. ' +
+    'Editor spreadsheet: owner + ' + CONFIG.ADMIN_EMAILS.length + ' admin + ' +
     countWorker + ' worker + ' + countAsisten + ' asisten');
 
   return { countWorker, countAsisten };
@@ -284,29 +287,20 @@ function buatSheetSettings() {
     .setBorder(true, true, true, true, true, true,
       '#E0E0E0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Proteksi: 2 lapis ───────────────────────────────────────────────
-  // 1. Sheet-level (admin only) — default-deny untuk seluruh sheet
-  // 2. Range A2:C9 (jam) — admin + worker + asisten (override sheet protect)
-  const owner = Session.getEffectiveUser();
-
-  const sheetProt = sheet.protect();
-  sheetProt.setDescription('_Settings — hanya admin yang bisa edit');
-  sheetProt.setWarningOnly(false);
-  sheetProt.removeEditors(sheetProt.getEditors());
-  sheetProt.addEditor(owner);
-  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
-    try { sheetProt.addEditor(adminEmail); } catch(e) {}
-  }
-
-  const { countWorker, countAsisten } = _setProteksiSettingsJam(sheet);
+  // ── Proteksi range-only ─────────────────────────────────────────────
+  // Row 1 (header) dan row 10-15 (operational) admin only.
+  // Row 2-9 (jam) tidak diproteksi → editor spreadsheet bisa edit.
+  // Worker + asisten dari Master_Data di-share sebagai Editor.
+  const { countWorker, countAsisten } = _setProteksiSettings(sheet);
 
   ui.alert(
     '✅ Sheet _Settings berhasil dibuat!\n\n' +
     'Edit kolom VALUE untuk mengubah setting.\n' +
     'Perubahan berlaku otomatis di append/trigger berikutnya.\n\n' +
     'Akses:\n' +
-    '• Row 2–9 (jam): admin + ' + countWorker + ' worker + ' + countAsisten + ' asisten\n' +
-    '• Row 1, 10–15: admin only'
+    '• Row 1, 10–15: admin only\n' +
+    '• Row 2–9 (jam): editable oleh editor spreadsheet ' +
+    '(admin + ' + countWorker + ' worker + ' + countAsisten + ' asisten)'
   );
 }
 
@@ -326,14 +320,16 @@ function perbaruiAksesSettings() {
     return;
   }
 
-  const { countWorker, countAsisten } = _setProteksiSettingsJam(sheet);
+  const { countWorker, countAsisten } = _setProteksiSettings(sheet);
 
   SpreadsheetApp.getUi().alert(
     '✅ Akses _Settings diperbarui!\n\n' +
-    'Row 2–9 (jam) editor:\n' +
+    'Editor spreadsheet:\n' +
     '• Owner + ' + CONFIG.ADMIN_EMAILS.length + ' admin\n' +
     '• ' + countWorker + ' worker dari Master_Data\n' +
-    '• ' + countAsisten + ' asisten dari Master_Data'
+    '• ' + countAsisten + ' asisten dari Master_Data\n\n' +
+    'Row 1 dan row 10–15 tetap admin only.\n' +
+    'Row 2–9 (jam) editable oleh semua editor di atas.'
   );
 }
 
