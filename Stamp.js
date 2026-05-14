@@ -106,7 +106,7 @@ function cekRekapSaya() {
 
     const today = getToday();
     const data  = sheet.getDataRange().getValues();
-    let hadir = 0, sakit = 0, izin = 0, alpha = 0, belum = 0;
+    let hadir = 0, sakit = 0, izin = 0, alpha = 0, redDay = 0, belum = 0;
 
     for (let i = 3; i < data.length; i++) {
       const tgl       = data[i][0];
@@ -119,25 +119,27 @@ function cekRekapSaya() {
       const tglD = new Date(tgl.getFullYear(), tgl.getMonth(), tgl.getDate());
       if (tglD.getTime() > today.getTime()) continue;
 
-      if      (status === 'Hadir') hadir++;
-      else if (status === 'Sakit') sakit++;
-      else if (status === 'Izin')  izin++;
-      else if (status === 'Alpha') alpha++;
+      if      (status === 'Hadir')   hadir++;
+      else if (status === 'Sakit')   sakit++;
+      else if (status === 'Izin')    izin++;
+      else if (status === 'Alpha')   alpha++;
+      else if (status === 'Red Day') redDay++;
       else belum++;
     }
 
-    const total = hadir + sakit + izin + alpha + belum;
+    const total = hadir + sakit + izin + alpha + redDay + belum;
     const pct   = total > 0 ? Math.round(hadir / total * 100) : 0;
 
     SpreadsheetApp.getUi().alert(
       '📊 Rekap Absensi Bulan Ini\n' +
       user.nama + ' — ' + user.divisi + '\n' +
       '─────────────────────────\n' +
-      '✅ Hadir    : ' + hadir + ' hari\n' +
-      '🤒 Sakit    : ' + sakit + ' hari\n' +
-      '📝 Izin     : ' + izin  + ' hari\n' +
-      '❌ Alpha    : ' + alpha + ' hari\n' +
-      '⏳ Belum isi: ' + belum + ' hari\n' +
+      '✅ Hadir    : ' + hadir  + ' hari\n' +
+      '🤒 Sakit    : ' + sakit  + ' hari\n' +
+      '📝 Izin     : ' + izin   + ' hari\n' +
+      '❌ Alpha    : ' + alpha  + ' hari\n' +
+      '🔴 Red Day  : ' + redDay + ' hari\n' +
+      '⏳ Belum isi: ' + belum  + ' hari\n' +
       '─────────────────────────\n' +
       'Kehadiran: ' + pct + '%'
     );

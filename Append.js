@@ -282,13 +282,14 @@ function _pasangFormulaBaris(sheet, startRow, numRows) {
           `${k}-${f}))))`
     );
 
-    // M: Regular Hours
+    // M: Regular Hours — Red Day langsung dapat 7 jam (hari libur dibayar penuh)
     sheet.getRange(r, COL_REGULAR_JAM).setFormula(
-      `=IF(${b}="Saturday",` +
+      `=IF(${e}="Red Day",${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,` +
+      `IF(${b}="Saturday",` +
         `IF(${l}>=${CONFIG.DAYS_HOUR.SATURDAY}/24,` +
           `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${l}),` +
       `IF(${l}>=${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,` +
-        `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${l}))`
+        `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${l})))`
     );
 
     // N: OT 1 (maks 1 jam di atas regular)
