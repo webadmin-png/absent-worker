@@ -99,8 +99,17 @@ function lockBarisWebSudahPulang() {
         continue;
       }
 
-      // Koreksi jika jam pulang sudah lewat tengah malam
-      if (jamPulang > now) jamPulang.setDate(jamPulang.getDate() - 1);
+      // Jika jamPulang masih di masa depan (mis. auto-filled "18:00" oleh
+      // appendHariIni pagi-pagi, sedangkan lock jalan sebelum jam 18:00),
+      // belum waktunya lock — skip dan tunggu trigger berikutnya.
+      // Catatan: shift malam dengan jamPulang yang melewati tengah malam
+      // tidak di-handle di sini — baris hari kemarin sudah di-filter oleh
+      // cek isSameDate(tgl, today) di atas.
+      if (jamPulang > now) {
+        Logger.log('⏳ ' + nama + ' (baris ' + row + '): pulang masih di masa depan (' +
+          Utilities.formatDate(jamPulang, CONFIG.TIMEZONE, 'HH:mm') + '), skip lock');
+        continue;
+      }
 
       const selisihMenit = (now - jamPulang) / 60000;
       if (selisihMenit < CONFIG.SELISIH_MENIT_LOCK) {
