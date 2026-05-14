@@ -155,6 +155,18 @@ function _loadSettings() {
   }
 }
 
+// ── Skema Master_Data ─────────────────────────────────────────────────
+// Sheet "Master_Data" — daftar staf yang dibaca oleh appendHariIni() dan
+// proteksiBarisBaru(). Header di baris 3, data mulai baris 4.
+//
+// A=1  Divisi          → nama divisi (HURUF KAPITAL, cocok dengan CONFIG.DIVISI)
+// B=2  Nama            → nama lengkap staf
+// C=3  Email           → email Google Account staf (jadi editor barisnya)
+// D=4  Aktif           → "TRUE" atau "FALSE" — hanya TRUE yang di-append
+// E=5  Email Asisten   → opsional. Email tambahan yang boleh edit baris
+//                        worker ini (kolom E:K). Kosongkan kalau tidak ada.
+//                        Asisten TIDAK pakai menu Stamp — edit manual via sel.
+
 // ── Mapping kolom sheet (1-indexed) ───────────────────────────────────
 // A=1  Tanggal           → terkunci (diisi otomatis)
 // B=2  Hari              → terkunci (diisi otomatis)
