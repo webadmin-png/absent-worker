@@ -102,17 +102,19 @@ function appendHariIni() {
       namaHari,                                     // B: Hari
       s.nama,                                       // C: Nama
       s.email,                                      // D: Email
-      auto ? (auto.status      || '') : '',          // E: Status
-      auto ? toSerial(auto.masuk)       : '',        // F: Masuk
-      auto ? toSerial(auto.ist1Mulai)   : '',        // G: Ist. 1 Mulai
-      auto ? toSerial(auto.ist1Selesai) : '',        // H: Ist. 1 Selesai
-      auto ? toSerial(auto.ist2Mulai)   : '',        // I: Ist. 2 Mulai
-      auto ? toSerial(auto.ist2Selesai) : '',        // J: Ist. 2 Selesai
-      auto ? toSerial(auto.pulang)      : '',        // K: Pulang
-      '', '', '', '',                               // L–O: formula (diset di bawah)
-      '', '',                                       // P–Q: admin only
-      '', '',                                       // R: Keterangan, S: Plan
-      '', '',                                       // T: Catatan Telat, U: Catatan Pulang Awal
+      auto ? (auto.status      || '') : '',         // E: Status
+      auto ? toSerial(auto.masuk)       : '',       // F: Masuk
+      auto ? toSerial(auto.ist1Mulai)   : '',       // G: Ist. 1 Mulai
+      auto ? toSerial(auto.ist1Selesai) : '',       // H: Ist. 1 Selesai
+      auto ? toSerial(auto.ist2Mulai)   : '',       // I: Ist. 2 Mulai
+      auto ? toSerial(auto.ist2Selesai) : '',       // J: Ist. 2 Selesai
+      auto ? toSerial(auto.ist3Mulai)   : '',       // K: Ist. 3 Mulai
+      auto ? toSerial(auto.ist3Selesai) : '',       // L: Ist. 3 Selesai
+      auto ? toSerial(auto.pulang)      : '',       // M: Pulang
+      '', '', '', '',                               // N–Q: formula (diset di bawah)
+      '', '',                                       // R–S: admin only (NOTE, SUNDAY)
+      '', '',                                       // T–U: Keterangan, Plan
+      '', '',                                       // V–W: Catatan Telat, Catatan Pulang Awal
     ]);
 
     const insertAt = sheet.getLastRow() + 1;
@@ -123,7 +125,8 @@ function appendHariIni() {
 
     // Format HH:mm untuk kolom jam yang diisi otomatis
     if (auto) {
-      [COL_MASUK, COL_IST1_M, COL_IST1_S, COL_IST2_M, COL_IST2_S, COL_PULANG]
+      [COL_MASUK, COL_IST1_M, COL_IST1_S, COL_IST2_M, COL_IST2_S,
+       COL_IST3_M, COL_IST3_S, COL_PULANG]
         .forEach(col => sheet.getRange(insertAt, col, newRows.length, 1)
           .setNumberFormat('HH:mm'));
     }
@@ -131,16 +134,16 @@ function appendHariIni() {
     // Warna kolom
     sheet.getRange(insertAt, 1,  newRows.length, 4)
       .setBackground('#FFF9C4').setFontColor('#5F5E5A');  // A:D terkunci
-    sheet.getRange(insertAt, 5,  newRows.length, 7)
-      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // E:K editable
-    sheet.getRange(insertAt, 12, newRows.length, 4)
-      .setBackground('#FFF9C4').setFontColor('#534AB7').setFontWeight('bold'); // L:O formula
-    sheet.getRange(insertAt, 16, newRows.length, 2)
-      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // P:Q admin
-    sheet.getRange(insertAt, 18, newRows.length, 2)
-      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // R:S keterangan/plan
-    sheet.getRange(insertAt, 20, newRows.length, 2)
-      .setBackground('#FFF9C4').setFontColor('#E65100');  // T:U catatan telat/pulang awal
+    sheet.getRange(insertAt, 5,  newRows.length, 9)
+      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // E:M editable (Status..Pulang)
+    sheet.getRange(insertAt, COL_EFEKTIF, newRows.length, 4)
+      .setBackground('#FFF9C4').setFontColor('#534AB7').setFontWeight('bold'); // N:Q formula
+    sheet.getRange(insertAt, COL_NOTE, newRows.length, 2)
+      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // R:S admin
+    sheet.getRange(insertAt, COL_KETERANGAN, newRows.length, 2)
+      .setBackground('#FFF9C4').setFontColor('#2C2C2A');  // T:U keterangan/plan
+    sheet.getRange(insertAt, COL_TELAT, newRows.length, 2)
+      .setBackground('#FFF9C4').setFontColor('#E65100');  // V:W catatan telat/pulang awal
 
     // Border
     sheet.getRange(insertAt, 1, newRows.length, TOTAL_COL)
@@ -261,54 +264,59 @@ function groupByToday(targetSheet) {
   }
 }
 
-// ── _pasangFormulaBaris — Private: set formula L, M, N, O ─────────────
-// Dipanggil oleh appendHariIni() dan generateFullMonth()
+// ── _pasangFormulaBaris — Private: set formula N, O, P, Q ─────────────
+// Dipanggil oleh appendHariIni() dan generateFullMonth().
+// Formula pakai pola "flat" — pulang dikurangi durasi tiap istirahat
+// yang terisi (ist1, ist2, ist3) dengan IF guard.
 function _pasangFormulaBaris(sheet, startRow, numRows) {
   for (let r = startRow; r < startRow + numRows; r++) {
     const a=`A${r}`, b=`B${r}`, e=`E${r}`, f=`F${r}`,
           g=`G${r}`, h=`H${r}`, i=`I${r}`, j=`J${r}`,
-          k=`K${r}`, l=`L${r}`;
+          k=`K${r}`, l=`L${r}`, m=`M${r}`, n=`N${r}`;
 
-    // L: Jam Efektif (fraction hari)
+    // Helper string: total durasi istirahat (ist1 + ist2 + ist3).
+    // Tiap term dibungkus IF(AND(... <> ""), ..., 0) agar opsional.
+    const istTotal =
+      `IF(AND(${g}<>"",${h}<>""),${h}-${g},0)` +
+      `+IF(AND(${i}<>"",${j}<>""),${j}-${i},0)` +
+      `+IF(AND(${k}<>"",${l}<>""),${l}-${k},0)`;
+
+    // N: Jam Efektif (flat) — pulang - masuk - total istirahat
     sheet.getRange(r, COL_EFEKTIF).setFormula(
       `=IF(${e}<>"Hadir",0,` +
-      `IF(OR(${f}="",${k}=""),0,` +
-      `IF(AND(${g}<>"",${h}<>""),` +
-        `IF(AND(${i}<>"",${j}<>""),` +
-          `${k}-${f}-(${h}-${g})-(${j}-${i}),` +
-          `${k}-${f}-(${h}-${g})),` +
-      `IF(AND(${i}<>"",${j}<>""),` +
-          `${k}-${f}-(${j}-${i}),` +
-          `${k}-${f}))))`
+      `IF(OR(${f}="",${m}=""),0,` +
+      `${m}-${f}-(${istTotal})))`
     );
 
-    // M: Regular Hours — Red Day langsung dapat 7 jam (hari libur dibayar penuh)
+    // O: Regular Hours — Red Day langsung dapat REGULAR_DAYS jam
     sheet.getRange(r, COL_REGULAR_JAM).setFormula(
       `=IF(${e}="Red Day",${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,` +
       `IF(${b}="Saturday",` +
-        `IF(${l}>=${CONFIG.DAYS_HOUR.SATURDAY}/24,` +
-          `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${l}),` +
-      `IF(${l}>=${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,` +
-        `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${l})))`
+        `IF(${n}>=${CONFIG.DAYS_HOUR.SATURDAY}/24,` +
+          `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${n}),` +
+      `IF(${n}>=${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,` +
+        `${CONFIG.DAYS_HOUR.REGULAR_DAYS}/24,${n})))`
     );
 
-    // N: OT 1 (maks 1 jam di atas regular)
+    // P: OT 1 (maks 1 jam di atas regular)
     sheet.getRange(r, COL_OT1).setFormula(
-      `=IF(${e}<>"Hadir",0,IF(OR(${f}="",${k}=""),0,IF((${k}-${f}-IF(AND(${g}<>"",${h}<>""),${h}-${g},0)-IF(AND(${i}<>"",${j}<>""),${j}-${i},0))<=IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})/24,0,MIN(1/24,(${k}-${f}-IF(AND(${g}<>"",${h}<>""),${h}-${g},0)-IF(AND(${i}<>"",${j}<>""),${j}-${i},0))-IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})/24))))`
+      `=IF(${e}<>"Hadir",0,` +
+      `IF(OR(${f}="",${m}=""),0,` +
+      `IF((${m}-${f}-(${istTotal}))` +
+        `<=IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})/24,` +
+      `0,` +
+      `MIN(1/24,(${m}-${f}-(${istTotal}))` +
+        `-IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})/24))))`
     );
 
-    // O: OT 2 (di atas OT 1)
+    // Q: OT 2 (di atas OT 1)
     sheet.getRange(r, COL_OT2).setFormula(
       `=IF(${e}<>"Hadir",0,` +
-      `IF(OR(${f}="",${k}=""),0,` +
-      `IF((${k}-${f}` +
-        `-IF(AND(${g}<>"",${h}<>""),${h}-${g},0)` +
-        `-IF(AND(${i}<>"",${j}<>""),${j}-${i},0))` +
+      `IF(OR(${f}="",${m}=""),0,` +
+      `IF((${m}-${f}-(${istTotal}))` +
         `<=(IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})+1)/24,` +
       `0,` +
-      `${k}-${f}` +
-        `-IF(AND(${g}<>"",${h}<>""),${h}-${g},0)` +
-        `-IF(AND(${i}<>"",${j}<>""),${j}-${i},0)` +
+      `${m}-${f}-(${istTotal})` +
         `-(IF(WEEKDAY(${a},2)=6,${CONFIG.DAYS_HOUR.SATURDAY},${CONFIG.DAYS_HOUR.REGULAR_DAYS})+1)/24)))`
     );
   }
