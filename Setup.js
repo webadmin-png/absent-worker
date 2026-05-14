@@ -13,6 +13,7 @@
 // Buat struktur header (baris 1–3) + formatting untuk setiap divisi.
 // Baris data (staf) akan diisi oleh appendHariIni() setelah sheet dibuat.
 function buatSheetBulanBaru() {
+  _loadSettings();
   const ss        = SpreadsheetApp.getActiveSpreadsheet();
   const now       = new Date();
   const namaBulan = Utilities.formatDate(now, CONFIG.TIMEZONE, 'MMM_yyyy');
@@ -227,6 +228,8 @@ function buatSheetSettings() {
 // ── setupProteksiMaster — Kunci sheet Master_Data ─────────────────────
 // Hapus proteksi lama lalu kunci seluruh sheet untuk owner saja
 function setupProteksiMaster() {
+  _loadSettings();
+  _requireAdmin();
   const ss     = SpreadsheetApp.getActiveSpreadsheet();
   const master = ss.getSheetByName(CONFIG.SHEET_MASTER);
   if (!master) return;
@@ -317,8 +320,8 @@ function setupValidasiBaris(sheet, startRow, numRows) {
   // E: Status (dropdown)
   sheet.getRange(startRow, COL_STATUS, numRows, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
-      .requireValueInList(['Hadir', 'Sakit', 'Izin', 'Alpha'], true)
-      .setHelpText('Pilih: Hadir / Sakit / Izin / Alpha')
+      .requireValueInList(['Hadir', 'Sakit', 'Izin', 'Alpha', 'Red Day'], true)
+      .setHelpText('Pilih: Hadir / Sakit / Izin / Alpha / Red Day')
       .setAllowInvalid(false).build()
   );
 
@@ -423,7 +426,8 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
     barisPerOrang[nama].push(startRow + i);
   }
 
-  // Step 4: Proteksi E:O per staf (staf hanya bisa edit barisnya sendiri)
+  // Step 4: Proteksi E:K per staf (staf hanya bisa edit jam absen barisnya sendiri)
+  // Kolom L:O (formula) dan P:Q (admin) diproteksi terpisah di bawah
   let berhasil = 0;
   for (const k of masterData) {
     const nama  = String(k[1]).trim();
@@ -438,7 +442,7 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
 
     const range = sheet.getRange(
       baris[0], COL_STATUS,
-      baris.length, COL_OT2 - COL_STATUS + 1  // E sampai O
+      baris.length, COL_PULANG - COL_STATUS + 1  // E sampai K
     );
 
     const prot = range.protect();
@@ -464,7 +468,23 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
     }
   }
 
-  // Step 5: Proteksi P:Q — hanya admin
+  // Step 5: Proteksi L:O — kolom formula, hanya owner + admin
+  const rangeLO = sheet.getRange(startRow, COL_EFEKTIF, numRows, COL_OT2 - COL_EFEKTIF + 1);
+  const protLO  = rangeLO.protect();
+  protLO.setDescription('Formula L:O — owner + admin only — baris ' + startRow + '–' + endRow);
+  protLO.setWarningOnly(false);
+  protLO.removeEditors(protLO.getEditors());
+  protLO.addEditor(owner);
+  for (const adminEmail of CONFIG.ADMIN_EMAILS) {
+    try {
+      protLO.addEditor(adminEmail);
+    } catch(err) {
+      Logger.log('⚠ Gagal tambah admin L:O ' + adminEmail + ': ' + err.message);
+    }
+  }
+  Logger.log('✓ Proteksi L:O (formula, owner + admin) baris ' + startRow + '–' + endRow);
+
+  // Step 6: Proteksi P:Q — hanya admin
   const rangePQ = sheet.getRange(startRow, COL_NOTE, numRows, 2);
   const protPQ  = rangePQ.protect();
   protPQ.setDescription('Admin only — P:Q baris ' + startRow + '–' + endRow);
