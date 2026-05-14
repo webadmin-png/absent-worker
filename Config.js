@@ -52,6 +52,8 @@ var CONFIG = {
       ist1Selesai : '13:00',
       ist2Mulai   : '',
       ist2Selesai : '',
+      ist3Mulai   : '',
+      ist3Selesai : '',
       pulang      : '',
     },
     'WORKER': {
@@ -61,6 +63,8 @@ var CONFIG = {
       ist1Selesai : '13:00',
       ist2Mulai   : '',
       ist2Selesai : '',
+      ist3Mulai   : '',
+      ist3Selesai : '',
       pulang      : '',
     },
     // Tambah divisi baru di sini — nama harus sama dengan di TARGETS deploy.sh
@@ -71,6 +75,8 @@ var CONFIG = {
     //   ist1Selesai : '13:00',
     //   ist2Mulai   : '',
     //   ist2Selesai : '',
+    //   ist3Mulai   : '',
+    //   ist3Selesai : '',
     //   pulang      : '',
     // },
   }
@@ -104,7 +110,9 @@ function _loadSettings() {
     if (!CONFIG.AUTO_ABSENSI)          CONFIG.AUTO_ABSENSI = {};
     if (!CONFIG.AUTO_ABSENSI[divisi])  CONFIG.AUTO_ABSENSI[divisi] = {
       status: 'Hadir', masuk: '', ist1Mulai: '', ist1Selesai: '',
-      ist2Mulai: '', ist2Selesai: '', pulang: ''
+      ist2Mulai: '', ist2Selesai: '',
+      ist3Mulai: '', ist3Selesai: '',
+      pulang: ''
     };
 
     const autoFieldMap = {
@@ -113,6 +121,8 @@ function _loadSettings() {
       IST1_SELESAI : 'ist1Selesai',
       IST2_MULAI   : 'ist2Mulai',
       IST2_SELESAI : 'ist2Selesai',
+      IST3_MULAI   : 'ist3Mulai',
+      IST3_SELESAI : 'ist3Selesai',
       PULANG       : 'pulang',
     };
 
@@ -168,27 +178,31 @@ function _loadSettings() {
 //                        Asisten TIDAK pakai menu Stamp — edit manual via sel.
 
 // ── Mapping kolom sheet (1-indexed) ───────────────────────────────────
-// A=1  Tanggal           → terkunci (diisi otomatis)
-// B=2  Hari              → terkunci (diisi otomatis)
-// C=3  Nama              → terkunci (diisi dari Master_Data)
-// D=4  Email             → terkunci (diisi dari Master_Data)
-// E=5  Status ▾          → editable staf (dropdown)
-// F=6  Masuk             → editable staf (HH:mm)
+// A=1  Tanggal              → terkunci (diisi otomatis)
+// B=2  Hari                 → terkunci (diisi otomatis)
+// C=3  Nama                 → terkunci (diisi dari Master_Data)
+// D=4  Email                → terkunci (diisi dari Master_Data)
+// E=5  Status ▾             → editable staf (dropdown)
+// F=6  Masuk                → editable staf (HH:mm)
 // G=7  Ist. Pertama Mulai   → editable staf (HH:mm, opsional)
 // H=8  Ist. Pertama Selesai → editable staf (HH:mm, opsional)
 // I=9  Ist. Kedua Mulai     → editable staf (HH:mm, opsional)
 // J=10 Ist. Kedua Selesai   → editable staf (HH:mm, opsional)
-// K=11 Pulang            → editable staf (HH:mm)
-// L=12 Jam Efektif       → formula otomatis (terkunci)
-// M=13 Regular Hours     → formula otomatis (terkunci)
-// N=14 OT 1              → formula otomatis (terkunci)
-// O=15 OT 2              → formula otomatis (terkunci)
-// P=16 NOTE              → editable admin only (dropdown)
-// Q=17 SUNDAY/RED DAY    → editable admin only (dropdown)
-// R=18 KETERANGAN        → editable staf (teks bebas)
-// S=19 PLAN              → editable staf (dropdown via Web App)
+// K=11 Ist. Ketiga Mulai    → editable staf (HH:mm, opsional)
+// L=12 Ist. Ketiga Selesai  → editable staf (HH:mm, opsional)
+// M=13 Pulang               → editable staf (HH:mm)
+// N=14 Jam Efektif          → formula otomatis (terkunci)
+// O=15 Regular Hours        → formula otomatis (terkunci)
+// P=16 OT 1                 → formula otomatis (terkunci)
+// Q=17 OT 2                 → formula otomatis (terkunci)
+// R=18 NOTE                 → editable admin only (dropdown)
+// S=19 SUNDAY/RED DAY       → editable admin only (dropdown)
+// T=20 KETERANGAN           → editable staf (teks bebas)
+// U=21 PLAN                 → editable staf (dropdown via Web App)
+// V=22 CATATAN TELAT        → editable staf (alasan telat masuk)
+// W=23 CATATAN PULANG AWAL  → editable staf (alasan pulang lebih awal)
 
-const TOTAL_COL       = 21; // Jumlah kolom total (A sampai U)
+const TOTAL_COL       = 23; // Jumlah kolom total (A sampai W)
 
 const COL_TANGGAL     = 1;  // A
 const COL_HARI        = 2;  // B
@@ -200,20 +214,22 @@ const COL_IST1_M      = 7;  // G
 const COL_IST1_S      = 8;  // H
 const COL_IST2_M      = 9;  // I
 const COL_IST2_S      = 10; // J
-const COL_PULANG      = 11; // K
-const COL_EFEKTIF     = 12; // L — formula, terkunci
-const COL_REGULAR_JAM = 13; // M — formula, terkunci
-const COL_OT1         = 14; // N — formula, terkunci
-const COL_OT2         = 15; // O — formula, terkunci
-const COL_NOTE        = 16; // P — admin only
-const COL_SUNDAY      = 17; // Q — admin only
-const COL_KETERANGAN  = 18; // R — editable staf
-const COL_PLAN        = 19; // S — editable staf
-const COL_TELAT        = 20; // T — editable staf (alasan telat masuk)
-const COL_PULANG_AWAL  = 21; // U — editable staf (alasan pulang lebih awal)
+const COL_IST3_M      = 11; // K
+const COL_IST3_S      = 12; // L
+const COL_PULANG      = 13; // M
+const COL_EFEKTIF     = 14; // N — formula, terkunci
+const COL_REGULAR_JAM = 15; // O — formula, terkunci
+const COL_OT1         = 16; // P — formula, terkunci
+const COL_OT2         = 17; // Q — formula, terkunci
+const COL_NOTE        = 18; // R — admin only
+const COL_SUNDAY      = 19; // S — admin only
+const COL_KETERANGAN  = 20; // T — editable staf
+const COL_PLAN        = 21; // U — editable staf
+const COL_TELAT       = 22; // V — editable staf (alasan telat masuk)
+const COL_PULANG_AWAL = 23; // W — editable staf (alasan pulang lebih awal)
 
-// Batas kolom yang boleh diedit staf (E–U)
-// Kolom L (COL_EFEKTIF) dikecualikan lewat guard di onEdit
-// Kolom P, Q (COL_NOTE, COL_SUNDAY) dikecualikan sebagai admin-only
-const COL_EDIT_START = COL_STATUS;  // E = 5
-const COL_EDIT_END   = COL_PULANG_AWAL;    // U = 21
+// Batas kolom yang boleh diedit staf (E–W)
+// Kolom N (COL_EFEKTIF) dikecualikan lewat guard di onEdit
+// Kolom R, S (COL_NOTE, COL_SUNDAY) dikecualikan sebagai admin-only
+const COL_EDIT_START = COL_STATUS;     // E = 5
+const COL_EDIT_END   = COL_PULANG_AWAL; // W = 23
