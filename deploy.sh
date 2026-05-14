@@ -16,11 +16,17 @@ set -euo pipefail
 # ── Daftar divisi: "NAMA:scriptId" ──────────────────────────────────────
 # Tambah baris baru untuk setiap divisi baru
 TARGETS=(
-  "DEVELOPMENT:1nH3AmfYpDLj0QoskX45YKZ72fs0q1TinpoWfhvN4OT5rc-vvg2eAX5Wk"
-  "WORKER:1GSnVsll5y8tx8iExoxt1JmJ5cV5loy4JfsuklmzjV-F4qxv2zmy7iySC"
-  "LINE 1:14YgLiZHIXIyf8W4GVHh_P2udL04bY1qglOr-v0eBGpLVJ335Lrf4ke1J"
-  # "FINANCE:GANTI_DENGAN_SCRIPT_ID_FINANCE"
-  # "MARKETING:GANTI_DENGAN_SCRIPT_ID_MARKETING"
+    "IF - PARWATI:1WBaTgmLvIIMCUjaqaZL4Ak2_cIBYt5x3J1SiCKVsXtjkX1bMLVChSOM0"
+    "IF - ASTIN:1W8ovD-3HrsscR9Pos8ppH7_NfmP3K_94xVrxxhQUlvAe4YLa9BIe1QSs"
+    "DEV:1BAIO7zfmr1bovKNCRz2KOj_WLz6r2YiolGR1hdV2bnu93_wNqW1-8tN4"
+    "IF - YARN WAREHOUSE:1ozJ_04_2avBafxM40YBr5u1laCRjlXCMDyWX36kn6FITfDehWLZsEAmt"
+    "IF - SELMA:1QxZhANB2wBooD-wOtHjNh5fS6ecbmzP5d-R0NB70eHeMuBdu4TbWa1qD"
+    "IF - ST5:13gQY2wmk9iuTR2ViQvK5u651_yGB1aHCRcv6hL8tFYbpnIgOMpBSg6ND"
+    "IF - SRI:10WwhxCoa4Q8WLFzmzQdViwk5xxKwEvXVAGtuRA-DmE9skO0Dv6JigSrE"
+    "IF - RUPIASIH:1XxpBAvBVyY-sE_MMGirGlzS0jZaGPMnqux2vSsdcyoH2_nw3YctAgDIu"
+    "IF - RINCE:1_XDDJG1VwkuL4bY0FJ58ao66kzCy2Ok1xZ0emcnj3CRUeCEwKg6E3yhw"
+    "IF - KADEK VERA:1KuLIBUUabgOPj3BbThe_dPUXjyZ_5WfY88C5WSDxvGB8RfJZXNqzeVGd"
+    "TESTING WORKER:1vMbBBnUEw7ZlAoGkaHSSCp2Xp7qBBpOix8YlH9Bh7dpRNC3jUX4Irbgr"
 )
 
 # ── Validasi ─────────────────────────────────────────────────────────────
