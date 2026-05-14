@@ -306,6 +306,33 @@ function buatSheetSettings() {
   );
 }
 
+// ── perbaruiAksesSettings — Refresh editor A2:C9 dari Master_Data ─────
+// Dipakai ketika Master_Data berubah (worker baru, asisten ganti, dll.)
+// tanpa harus reset seluruh sheet _Settings. Idempotent.
+function perbaruiAksesSettings() {
+  _requireAdmin();
+  _loadSettings();
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('_Settings');
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert(
+      '⚠ Sheet _Settings tidak ditemukan.\n\n' +
+      'Jalankan "⚙️ Buat/Reset Sheet Settings" dulu.'
+    );
+    return;
+  }
+
+  const { countWorker, countAsisten } = _setProteksiSettingsJam(sheet);
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Akses _Settings diperbarui!\n\n' +
+    'Row 2–9 (jam) editor:\n' +
+    '• Owner + ' + CONFIG.ADMIN_EMAILS.length + ' admin\n' +
+    '• ' + countWorker + ' worker dari Master_Data\n' +
+    '• ' + countAsisten + ' asisten dari Master_Data'
+  );
+}
+
 // ── setupProteksiMaster — Kunci sheet Master_Data ─────────────────────
 // Hapus proteksi lama lalu kunci seluruh sheet untuk owner saja
 function setupProteksiMaster() {
