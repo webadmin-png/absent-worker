@@ -43,9 +43,9 @@ function buatSheetBulanBaru() {
     // Baris 2: Legenda warna
     const legends = [
       [1,  4, 'ABU = sudah lewat',    '#F1EFE8', '#5F5E5A'],
-      [5,  4, 'PUTIH = bisa diedit',  '#FFFFFF',  '#2C2C2A'],
-      [9,  4, 'UNGU = formula auto',  '#EEEDFE',  '#534AB7'],
-      [13, 9, 'KUNING = hari ini',    '#FFF9C4',  '#633806'],
+      [5,  9, 'PUTIH = bisa diedit',  '#FFFFFF',  '#2C2C2A'],
+      [14, 4, 'UNGU = formula auto',  '#EEEDFE',  '#534AB7'],
+      [18, 6, 'KUNING = hari ini',    '#FFF9C4',  '#633806'],
     ];
     for (const [startCol, span, text, bg, fg] of legends) {
       sheet.getRange(2, startCol, 1, span).merge()
@@ -69,6 +69,8 @@ function buatSheetBulanBaru() {
       ['Ist. Pertama\nSelesai',             '#E1F5EE', '#085041'],
       ['Ist. Kedua\nMulai',                 '#E1F5EE', '#085041'],
       ['Ist. Kedua\nSelesai',               '#E1F5EE', '#085041'],
+      ['Ist. Ketiga\nMulai',                '#E1F5EE', '#085041'],
+      ['Ist. Ketiga\nSelesai',              '#E1F5EE', '#085041'],
       ['Pulang',                            '#E1F5EE', '#085041'],
       ['Jam Efektif 🔒',                    '#1D9E75', '#FFFFFF'],
       ['Regular Hours',                     '#E1F5EE', '#085041'],
@@ -93,13 +95,13 @@ function buatSheetBulanBaru() {
     }
     sheet.setRowHeight(3, 44);
 
-    // Lebar kolom A–S
-    const colWidths = [90,80,130,180,70,70,90,90,90,90,70,100,60,60,60,120,140,160,80,100,100];
+    // Lebar kolom A–W
+    const colWidths = [90,80,130,180,70,70,90,90,90,90, 90,90, 70,100,60,60,60,120,140,160,80,100,100];
     colWidths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
     sheet.setFrozenRows(3);
 
     // Kunci header — owner dan admin
-    const headerProt = sheet.getRange('A1:S3').protect();
+    const headerProt = sheet.getRange('A1:W3').protect();
     headerProt.setDescription('Header — owner dan admin');
     headerProt.setWarningOnly(false);
     headerProt.removeEditors(headerProt.getEditors());
@@ -163,6 +165,8 @@ function buatSheetSettings() {
     ['IST1_SELESAI',       auto.ist1Selesai  || '', 'Istirahat pertama selesai (HH:mm)'],
     ['IST2_MULAI',         auto.ist2Mulai    || '', 'Istirahat kedua mulai (HH:mm) — kosongkan jika tidak ada'],
     ['IST2_SELESAI',       auto.ist2Selesai  || '', 'Istirahat kedua selesai (HH:mm)'],
+    ['IST3_MULAI',         auto.ist3Mulai    || '', 'Istirahat ketiga mulai (HH:mm) — kosongkan jika tidak ada'],
+    ['IST3_SELESAI',       auto.ist3Selesai  || '', 'Istirahat ketiga selesai (HH:mm)'],
     ['PULANG',             auto.pulang       || '', 'Jam pulang default (HH:mm) — kosongkan jika staf isi sendiri'],
     // Separator kosong
     ['', '', ''],
@@ -176,10 +180,10 @@ function buatSheetSettings() {
 
   sheet.getRange(2, 1, rows.length, 3).setValues(rows);
 
-  // Baris 2–6 (MASUK s/d IST2_SELESAI) — kolom VALUE format HH:mm
+  // Baris 2–8 (MASUK s/d IST3_SELESAI) — kolom VALUE format HH:mm
   // agar Sheets menyimpan sebagai time serial, bukan string, sehingga
   // formula jam kerja di sheet absensi bisa menghitung dengan benar
-  sheet.getRange(2, 2, 5, 1).setNumberFormat('HH:mm');
+  sheet.getRange(2, 2, 7, 1).setNumberFormat('HH:mm');
 
   // ── Styling ──
   const keyRange = sheet.getRange(2, 1, rows.length, 1);
@@ -333,8 +337,8 @@ function setupValidasiBaris(sheet, startRow, numRows) {
       .setAllowInvalid(false).build()
   );
 
-  // G–K: opsional, jika diisi harus HH:MM
-  ['G','H','I','J','K'].forEach((col, idx) => {
+  // G–M: opsional, jika diisi harus HH:MM (Ist 1/2/3 + Pulang)
+  ['G','H','I','J','K','L','M'].forEach((col, idx) => {
     sheet.getRange(startRow, COL_IST1_M + idx, numRows, 1).setDataValidation(
       SpreadsheetApp.newDataValidation()
         .requireFormulaSatisfied(
