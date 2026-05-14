@@ -168,6 +168,9 @@ function _setProteksiSettingsJam(sheet) {
       const asistenEmail = String(k[4] || '').trim();
       if (workerEmail) {
         try {
+          // Share spreadsheet dulu — protection.addEditor saja tidak cukup
+          // untuk akun yang belum pernah di-share (cross-domain quirk).
+          ss.addEditor(workerEmail);
           jamProt.addEditor(workerEmail);
           countWorker++;
         } catch(e) {
@@ -176,6 +179,7 @@ function _setProteksiSettingsJam(sheet) {
       }
       if (asistenEmail) {
         try {
+          ss.addEditor(asistenEmail);
           jamProt.addEditor(asistenEmail);
           countAsisten++;
         } catch(e) {
@@ -569,6 +573,10 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
     }
 
     try {
+      // Share spreadsheet dulu sebelum range protect — Google Sheets
+      // tidak otomatis grant view access dari protection.addEditor saja
+      // untuk akun yang belum pernah di-share (cross-domain quirk).
+      ss.addEditor(email);
       prot.addEditor(email);
       berhasil++;
       Logger.log('✓ Proteksi: ' + nama + ' baris ' + baris[0] + '–' + baris[baris.length - 1]);
@@ -581,6 +589,7 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
     const asisten = String(k[4] || '').trim();
     if (asisten) {
       try {
+        ss.addEditor(asisten);
         prot.addEditor(asisten);
         Logger.log('✓ Proteksi asisten: ' + nama + ' ← ' + asisten);
       } catch(err) {
