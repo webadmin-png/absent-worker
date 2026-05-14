@@ -519,3 +519,134 @@ function proteksiBarisBaru(sheet, divisi, startRow, numRows) {
   Logger.log('✓ Proteksi P:Q (admin only) baris ' + startRow + '–' + endRow);
   Logger.log(divisi + ': proteksi selesai — ' + berhasil + ' orang');
 }
+
+// ── migrateSheetTambahIst3 — Migrasi sheet 21-col → 23-col ───────────
+// Untuk sheet yang dibuat SEBELUM fitur Ist 3 ditambah:
+//   1. Insert 2 kolom di posisi 11 (Google Sheets auto-shift formula
+//      yang sudah ada — referensi K → otomatis jadi M setelah insert)
+//   2. Tulis header "Ist. Ketiga Mulai/Selesai" di K3, L3 dengan
+//      formatting sama dengan ist1/ist2
+//   3. Set column width K, L = 90
+//   4. Update merge baris 1 (judul) ke A1:W1
+//   5. Reset legenda baris 2 dengan span posisi baru
+//   6. Re-pasang formula baris hari ini (supaya pakai versi flat
+//      baru yang subtract ist3)
+//   7. Re-run proteksiBarisBaru untuk baris hari ini supaya range
+//      proteksi range E:M tepat
+// Idempotent: kalau sudah migrated (header K3 berisi "Ist. Ketiga"
+// atau lastColumn >= 23), skip dengan log.
+function migrateSheetTambahIst3() {
+  _loadSettings();
+  _requireAdmin();
+  const ss      = SpreadsheetApp.getActiveSpreadsheet();
+  const hasil   = [];
+
+  // Cari sheet divisi (nama persis CONFIG.DIVISI atau prefix DIVISI_)
+  const sheets = ss.getSheets().filter(s => {
+    const nama = s.getName();
+    return CONFIG.DIVISI.some(d => nama === d || nama.startsWith(d + '_'));
+  });
+
+  if (sheets.length === 0) {
+    SpreadsheetApp.getUi().alert('⚠ Tidak ada sheet divisi untuk dimigrasi.');
+    return;
+  }
+
+  for (const sheet of sheets) {
+    const namaSheet = sheet.getName();
+
+    // Idempotency check
+    const headerK3 = String(sheet.getRange(3, 11).getValue() || '').toLowerCase();
+    if (headerK3.includes('ketiga') || sheet.getLastColumn() >= 23) {
+      hasil.push('⏭ ' + namaSheet + ': sudah ter-migrate, skip');
+      Logger.log('⏭ ' + namaSheet + ': sudah ter-migrate, skip');
+      continue;
+    }
+
+    // 1. Insert 2 kolom di posisi 11 (sebelum kolom Pulang lama)
+    sheet.insertColumnsBefore(11, 2);
+
+    // 2. Tulis header K3, L3 dengan formatting sama dengan ist1/ist2
+    sheet.getRange(3, 11)
+      .setValue('Ist. Ketiga\nMulai')
+      .setBackground('#E1F5EE').setFontColor('#085041')
+      .setFontWeight('bold').setFontSize(9)
+      .setHorizontalAlignment('center').setVerticalAlignment('middle')
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP)
+      .setBorder(true,true,true,true,false,false,
+        '#B0D9C8', SpreadsheetApp.BorderStyle.SOLID);
+    sheet.getRange(3, 12)
+      .setValue('Ist. Ketiga\nSelesai')
+      .setBackground('#E1F5EE').setFontColor('#085041')
+      .setFontWeight('bold').setFontSize(9)
+      .setHorizontalAlignment('center').setVerticalAlignment('middle')
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP)
+      .setBorder(true,true,true,true,false,false,
+        '#B0D9C8', SpreadsheetApp.BorderStyle.SOLID);
+
+    // 3. Set column width K, L = 90
+    sheet.setColumnWidth(11, 90);
+    sheet.setColumnWidth(12, 90);
+
+    // 4. Update merge baris 1 (judul) — un-merge lalu re-merge A1:W1
+    try {
+      sheet.getRange(1, 1, 1, 23).breakApart();
+    } catch(e) {}
+    sheet.getRange(1, 1, 1, 23).merge();
+
+    // 5. Update legenda baris 2 — un-merge dulu, lalu pasang ulang
+    try {
+      sheet.getRange(2, 1, 1, 23).breakApart();
+    } catch(e) {}
+    const legends = [
+      [1,  4, 'ABU = sudah lewat',    '#F1EFE8', '#5F5E5A'],
+      [5,  9, 'PUTIH = bisa diedit',  '#FFFFFF',  '#2C2C2A'],
+      [14, 4, 'UNGU = formula auto',  '#EEEDFE',  '#534AB7'],
+      [18, 6, 'KUNING = hari ini',    '#FFF9C4',  '#633806'],
+    ];
+    for (const [startCol, span, text, bg, fg] of legends) {
+      sheet.getRange(2, startCol, 1, span).merge()
+        .setValue(text).setBackground(bg).setFontColor(fg)
+        .setFontSize(9).setFontWeight('bold')
+        .setHorizontalAlignment('center')
+        .setBorder(true,true,true,true,false,false,
+          '#B0D9C8', SpreadsheetApp.BorderStyle.SOLID);
+    }
+
+    // 6 & 7: Re-pasang formula + re-run proteksi untuk baris hari ini
+    const today = getToday();
+    const lastRow = sheet.getLastRow();
+    let startToday = -1;
+    let numToday = 0;
+    if (lastRow >= 4) {
+      const dates = sheet.getRange(4, 1, lastRow - 3, 1).getValues();
+      for (let i = 0; i < dates.length; i++) {
+        if (dates[i][0] instanceof Date && isSameDate(dates[i][0], today)) {
+          if (startToday === -1) startToday = i + 4;
+          numToday++;
+        }
+      }
+    }
+
+    if (startToday > 0 && numToday > 0) {
+      _pasangFormulaBaris(sheet, startToday, numToday);
+      Logger.log('✓ ' + namaSheet + ': formula baris hari ini di-refresh (' +
+        startToday + '–' + (startToday + numToday - 1) + ')');
+
+      const divisi = CONFIG.DIVISI.find(d =>
+        namaSheet === d || namaSheet.startsWith(d + '_')
+      );
+      if (divisi) {
+        proteksiBarisBaru(sheet, divisi, startToday, numToday);
+        Logger.log('✓ ' + namaSheet + ': proteksi baris hari ini di-refresh');
+      }
+    }
+
+    hasil.push('✓ ' + namaSheet + ': migrated (2 kolom ditambah di K, L)');
+    Logger.log('✓ ' + namaSheet + ': migration selesai');
+  }
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Migrasi Ist 3 selesai!\n\n' + hasil.join('\n')
+  );
+}

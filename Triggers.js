@@ -181,6 +181,7 @@ function onOpen() {
     .addItem('⏰ Setup Trigger',               'setupTrigger')
     .addItem('🛡️ Setup Proteksi Master',      'setupProteksiMaster')
     .addItem('🔑 Perbarui Akses Admin',        'perbaruiProteksiAdmin')
+    .addItem('🔄 Migrasi Sheet Tambah Ist 3',  'migrateSheetTambahIst3')
     .addItem('⚙️ Buat/Reset Sheet Settings',  'buatSheetSettings')
     .addToUi();
 }
